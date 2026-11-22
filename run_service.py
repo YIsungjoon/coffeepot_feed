@@ -1,20 +1,16 @@
 """Run the feed collector in the background and record its exit status."""
 
+import sys
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
-from pathlib import Path
-import sys
 from traceback import print_exc
 
 from collect_feeds import main
-from save_feed import KST
-
-
-LOG_PATH = Path(__file__).resolve().with_name("collector.log")
+from feed.settings import COLLECTOR_LOG, KST
 
 
 def run() -> int:
-    with LOG_PATH.open("a", encoding="utf-8", buffering=1) as log:
+    with COLLECTOR_LOG.open("a", encoding="utf-8", buffering=1) as log:
         with redirect_stdout(log), redirect_stderr(log):
             print(f"[{datetime.now(KST).isoformat(timespec='seconds')}] Collection started")
             try:

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>피드 관리 · NVIDIA Feed Vault</title>
+<link rel="stylesheet" href="/assets/admin.css">
+<script src="/assets/admin.js" defer></script>
+</head>
+<body>
+<header><div class="bar"><span class="vault">NVIDIA Feed Vault</span><a href="/">독자 화면 보기</a><span id="connection" class="connection">연결 중</span></div></header>
+<main>
+  <div class="hero">
+    <div><h1>피드 관리</h1><p class="muted">GeekNews와 커피팟 기사 및 주제 분류</p></div>
+    <button id="run" type="button" class="action primary" disabled>지금 수집</button>
+  </div>
+  <p id="notice" role="status"></p>
+  <div class="metrics" aria-label="기사 및 수집 현황">
+    <button class="metric" type="button" data-filter="" aria-pressed="true"><span class="muted">전체 기사</span><strong id="total">—</strong></button>
+    <button class="metric" type="button" data-filter="classified" aria-pressed="false"><span class="muted">분류 완료</span><strong id="classified">—</strong></button>
+    <button class="metric" type="button" data-filter="review" aria-pressed="false"><span class="muted">검토 필요</span><strong id="review">—</strong></button>
+    <div class="metric"><span class="muted">다음 자동 수집 · 한국 시간</span><strong class="schedule" id="next">—</strong><span class="muted" id="last">최근 실행 기록 없음</span></div>
+  </div>
+
+  <div class="layout">
+    <section class="panel" aria-labelledby="list-title">
+      <div class="list-head"><h2 id="list-title">수집 기사</h2><span id="count" class="muted" aria-live="polite"></span></div>
+      <div class="filters">
+        <input id="search" type="search" aria-label="기사 제목 검색" placeholder="기사 제목 검색">
+        <select id="source" aria-label="출처"><option value="">전체 출처</option></select>
+        <select id="topic" aria-label="주제"><option value="">전체 주제</option></select>
+        <select id="filter-status" aria-label="분류 상태">
+          <option value="">전체 상태</option><option value="classified">분류 완료</option><option value="review">검토 필요</option><option value="pending">분류 대기</option><option value="unclassified">미분류</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th scope="col">기사</th><th scope="col">출처</th><th scope="col">날짜</th><th scope="col">대표 주제</th><th scope="col">상태</th></tr></thead><tbody id="rows"></tbody></table>
+        <p class="empty" id="empty">기사를 불러오는 중입니다.</p>
+      </div>
+    </section>
+
+    <aside class="panel detail" aria-labelledby="detail-title">
+      <h2 id="detail-title">기사 상세</h2>
+      <p class="muted" id="detail-empty">목록의 기사를 선택하세요.</p>
+      <div id="detail" hidden>
+        <div class="article-meta"><span class="muted" id="detail-meta"></span><span class="status" id="detail-status"></span></div>
+        <h3 id="detail-name"></h3>
+        <dl><dt>대표 주제</dt><dd id="detail-topic"></dd><dt>보조 주제</dt><dd id="detail-related"></dd><dt>분류 모델</dt><dd id="detail-model"></dd></dl>
+        <div id="evidence" hidden><p class="muted">분류 근거</p><blockquote id="detail-evidence"></blockquote></div>
+        <div class="article-actions"><a class="action primary" id="note-link">옵시디언에서 열기</a><a class="action" id="original-link" target="_blank" rel="noreferrer">원문 보기</a></div>
+      </div>
+    </aside>
+  </div>
+  <details class="panel log-panel"><summary>최근 수집 로그</summary><pre id="log">로그를 불러오는 중입니다.</pre></details>
+</main>
+</body>
+</html>

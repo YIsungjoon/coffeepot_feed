@@ -33,8 +33,11 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 
 | 영역 | 파일 |
 | --- | --- |
-| 로컬 HTTP 서버와 일일 수집 | `feed_server.py`, `run_service.py` |
-| 기사 수집과 Markdown 저장 | `collect_feeds.py`, `save_feed.py` |
-| 주제 분류, 관심사 추천, 일간 브리핑 | `classify_feeds.py`, `recommend_feeds.py`, `feed_briefing.py` |
-| 독자 화면과 관리 화면 | `feed_reader.html`, `feed_server.html` |
+| 웹 서버 실행과 HTTP 라우팅 | `feed_server.py`, `feed/http.py` |
+| 독자·관리 화면의 HTML, CSS, JavaScript | `web/reader/`, `web/admin/` |
+| 일일 수집 예약, 실행 이력, 수집·분류 실행 | `feed/jobs.py`, `run_service.py` |
+| 피드 수집, 출처 파서, 기사 링크 | `collect_feeds.py`, `feed/sources.py`, `feed/links.py` |
+| 옵시디언 기사 노트 읽기·쓰기, 화면에 제공할 기사 목록 | `feed/vault.py`, `feed/articles.py` |
+| 주제 분류, 관심사 추천, 일간 브리핑 | `classify_feeds.py`, `feed/recommendations.py`, `feed/briefing.py` |
+| 공통 NVIDIA 호출, 주제 목록, 로컬 설정 | `feed/nvidia.py`, `feed/topics.py`, `feed/settings.py` |
 | 벌트 초기화와 기본 대시보드 | `setup_vault.py`, `vault-templates/` |

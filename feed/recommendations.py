@@ -2,8 +2,8 @@
 
 import json
 
-from classify_feeds import DEFAULT_MODEL, api_key, request_nvidia
-from feed_settings import setting
+from .nvidia import DEFAULT_MODEL, api_key, request_nvidia
+from .settings import setting
 
 
 MAX_INTEREST = 400

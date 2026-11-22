@@ -2,10 +2,13 @@
 
 import os
 import re
+from datetime import timedelta, timezone
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+KST = timezone(timedelta(hours=9))
+COLLECTOR_LOG = ROOT / "collector.log"
 DOTENV_VALUE = re.compile(r'''^\s*(?:"([^"]*)"|'([^']*)'|([^#]*?))\s*(?:#.*)?$''')
 
 

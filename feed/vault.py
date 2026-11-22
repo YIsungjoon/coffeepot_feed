@@ -1,19 +1,24 @@
-"""Create an article note in a local Obsidian vault from one feed item."""
+"""Read and write the Obsidian feed article note format."""
 
 import json
 import os
 import re
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from urllib.parse import quote, urlsplit
 
+import yaml
 
-KST = timezone(timedelta(hours=9))
+from .settings import KST
+
+
 MARKDOWN_PUNCTUATION = re.compile(f"([{re.escape(string.punctuation)}])")
 YAML_ESCAPE = re.compile(r"[\x7f-\x9f\u2028\u2029]")
+HEADINGS = {"feed-excerpt": "피드 발췌", "public-listing": "공개 목록 소개"}
+FRONTMATTER = re.compile(r"\A\ufeff?---(?P<newline>\r?\n)(?P<yaml>.*?)^(?P<end>---)\r?$", re.M | re.S)
 
 
 def plain_markdown(text: str) -> str:
@@ -23,6 +28,23 @@ def plain_markdown(text: str) -> str:
 def yaml_value(value: str | list[str]) -> str:
     quoted = json.dumps(value, ensure_ascii=False)
     return YAML_ESCAPE.sub(lambda match: f"\\u{ord(match[0]):04x}", quoted)
+
+
+def feed_note(text: str) -> tuple[dict, re.Match] | None:
+    frontmatter = FRONTMATTER.match(text)
+    if frontmatter is None:
+        return None
+    properties = yaml.safe_load(frontmatter["yaml"])
+    if isinstance(properties, dict) and properties.get("type") == "feed-article":
+        return properties, frontmatter
+    return None
+
+
+def public_excerpt(body: str, basis: object) -> str:
+    if not isinstance(basis, str) or basis not in HEADINGS:
+        return ""
+    excerpt = re.search(rf"^## {HEADINGS[basis]}\r?\n\r?\n- ([^\r\n]+)", body, re.M)
+    return re.sub(r"\\" + MARKDOWN_PUNCTUATION.pattern, r"\1", excerpt[1]) if excerpt else ""
 
 
 def write_new_note(destination: Path, markdown: str) -> Path:
@@ -106,7 +128,7 @@ def save_article(
     heading = "요약"
     if content_basis is not None:
         properties["content_basis"] = content_basis
-        heading = "공개 목록 소개" if content_basis == "public-listing" else "피드 발췌"
+        heading = HEADINGS.get(content_basis, "피드 발췌")
     if published_at is not None:
         properties["published_at"] = published_at.isoformat(timespec="seconds")
     metadata = "\n".join(f"{key}: {yaml_value(value)}" for key, value in properties.items())
@@ -123,3 +145,24 @@ def save_article(
     destination = articles / day[:7] / f"{day}_{key}.md"
     destination.parent.mkdir(parents=True, exist_ok=True)
     return write_new_note(destination, markdown)
+
+
+def append_note_properties(path: Path, original: bytes, frontmatter: re.Match, fields: dict) -> bool:
+    newline = frontmatter["newline"]
+    block = "".join(f"{field}: {yaml_value(value)}{newline}" for field, value in fields.items())
+    text = original.decode("utf-8")
+    offset = frontmatter.start("end")
+    temporary = None
+    try:
+        with NamedTemporaryFile(dir=path.parent, prefix=".topic-", suffix=".tmp", delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write((text[:offset] + block + text[offset:]).encode())
+            handle.flush()
+            os.fsync(handle.fileno())
+        if path.is_symlink() or path.read_bytes() != original:
+            return False
+        os.replace(temporary, path)
+        return True
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)

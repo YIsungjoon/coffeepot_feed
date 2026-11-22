@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>피드 리더 · GeekNews와 커피팟</title>
+<link rel="stylesheet" href="/assets/reader.css">
+<script src="/assets/reader.js" defer></script>
+</head>
+<body>
+<header class="masthead">
+  <div class="frame">
+    <a href="/" class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>피드 리더</a>
+    <nav aria-label="기사 출처" id="sources"><button type="button" class="source-button" data-source="" aria-pressed="true">전체 피드</button></nav>
+  </div>
+</header>
+<main class="frame">
+  <section aria-labelledby="briefing-title" id="briefing">
+    <div class="briefing-top">
+      <div><h1 id="briefing-title">오늘의 브리핑</h1><p class="briefing-meta" id="briefing-meta">수집 기록을 불러오는 중입니다.</p></div>
+      <img src="/assets/feed-reader-hero.png" alt="" width="170" height="79">
+    </div>
+    <div id="briefing-details" hidden>
+      <div class="briefing-grid">
+        <section class="briefing-box" aria-labelledby="picks-title">
+          <h2 id="picks-title">먼저 볼 기사</h2>
+          <p class="section-note">여러 출처에서 반복된 이슈와 서로 다른 주제를 우선했습니다.</p>
+          <ol class="ranked" id="picks"></ol>
+        </section>
+        <section class="briefing-box" aria-labelledby="chart-title">
+          <h2 id="chart-title">주제별 기사 수</h2>
+          <p class="section-note">막대를 누르면 해당 대표 주제의 기사를 볼 수 있습니다.</p>
+          <div class="bars" id="chart"></div>
+        </section>
+      </div>
+      <div class="keyword-row" id="keywords" aria-labelledby="keyword-title" hidden>
+        <h2 id="keyword-title">주요 키워드</h2>
+        <div id="keyword-chips" class="keyword-row" style="margin-top:0"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="personal" aria-labelledby="personal-title">
+    <h2 id="personal-title">내 관심사로 추천</h2>
+    <p class="section-note">관심사와 공개 기사 발췌문을 NVIDIA에 보내 관련 기사를 최대 3건 추천받습니다.</p>
+    <form class="personal-form" id="recommend-form">
+      <input id="interest" class="search" type="text" aria-label="관심사 또는 제외할 주제" placeholder="예: AI 에이전트 구현 사례 위주, 투자 뉴스 제외" maxlength="400" required>
+      <button class="dialog-action" id="recommend" type="submit" disabled>추천 받기</button>
+    </form>
+    <p id="recommend-message" class="section-note" role="status"></p>
+    <ol class="ranked" id="recommend-results"></ol>
+  </section>
+
+  <section aria-labelledby="list-title" id="feed">
+    <div class="articles-head">
+      <div><h2 id="list-title">기사 목록</h2><span id="count" class="result-count" aria-live="polite"></span></div>
+      <div class="list-tools">
+        <button class="topic-button" id="today-only" type="button" aria-pressed="false">오늘 수집만</button>
+        <input class="search" id="search" type="search" aria-label="기사 검색" placeholder="기사 검색">
+      </div>
+    </div>
+    <div class="filters" id="topics" aria-label="기사 주제"></div>
+    <div class="cards" id="cards"></div>
+    <p id="empty" role="status">기사를 불러오는 중입니다.</p>
+  </section>
+</main>
+<dialog id="reader" aria-labelledby="article-title">
+  <div class="article-sheet">
+    <div class="article-top">
+      <p id="article-meta" class="article-meta"></p>
+      <form method="dialog"><button class="close" type="submit">닫기</button></form>
+    </div>
+    <h2 id="article-title"></h2>
+    <div class="tags" id="article-topics"></div>
+    <div class="article-excerpt">
+      <h3 id="excerpt-label"></h3>
+      <p id="article-excerpt"></p>
+    </div>
+    <div class="reading-links">
+      <button class="dialog-action main" id="preview-original" type="button" aria-controls="original-preview" aria-expanded="false" hidden>이 화면에서 원문 보기</button>
+      <a class="dialog-action" id="original" target="_blank" rel="noreferrer">원문 새 탭 <span aria-hidden="true">↗</span></a>
+      <a class="dialog-action" id="note">옵시디언에서 열기</a>
+    </div>
+    <section class="original-preview" id="original-preview" hidden>
+      <p>원문이 표시되지 않으면 위의 원문 새 탭을 사용하세요.</p>
+      <iframe id="original-frame" sandbox referrerpolicy="no-referrer" title="발행처 원문"></iframe>
+    </section>
+  </div>
+</dialog>
+</body>
+</html>

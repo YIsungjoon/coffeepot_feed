@@ -2,42 +2,24 @@
 
 import argparse
 import json
-import os
 import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import NamedTemporaryFile
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import yaml
 
-from collect_feeds import VAULT
-from feed_settings import ROOT, file_setting, setting
-from save_feed import MARKDOWN_PUNCTUATION, yaml_value
+from feed.nvidia import DEFAULT_MODEL, api_key, request_nvidia
+from feed.settings import ROOT, setting, vault_path
+from feed.topics import TOPICS
+from feed.vault import HEADINGS, append_note_properties, feed_note, public_excerpt
 
 
-NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-DEFAULT_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b"
 VERSION = "v1"
 BATCH_SIZE = 5
 MAX_ITEMS = 40
 REVIEW = "검토 필요"
-TOPICS = {
-    "AI·데이터": "AI 모델, ML 평가와 학습, AI 에이전트의 동작과 활용, 데이터 분석",
-    "소프트웨어·인프라": "개발 기법, 프로그래밍 언어, 운영체제, 앱 구현, 네트워크·클라우드 기술",
-    "보안·개인정보": "사이버 침해, 취약점, 방어, 개인정보 보호",
-    "기업·투자": "기업의 재무, 인수, 조직, 투자 전략과 자본 배분",
-    "미디어·콘텐츠": "출판, 언론, 방송, 영상, 게임, 콘텐츠 사업과 플랫폼 경쟁",
-    "산업·소비": "제조, 유통, 에너지·소비 산업과 제품 시장",
-    "경제·정책": "시장 전체의 거시경제, 공공정책, 규제, 정치·외교의 영향",
-    "과학·건강": "과학 연구, 수학, 우주, 생태, 의료와 건강",
-    "기타": "위 주제에 해당하지 않는 것으로 확인된 글",
-}
-HEADINGS = {"feed-excerpt": "피드 발췌", "public-listing": "공개 목록 소개"}
-FRONTMATTER = re.compile(r"\A\ufeff?---(?P<newline>\r?\n)(?P<yaml>.*?)^(?P<end>---)\r?$", re.M | re.S)
 
 
 @dataclass(frozen=True)
@@ -51,24 +33,15 @@ class Article:
     classified: bool
 
 
-def public_excerpt(body: str, basis: object) -> str:
-    if not isinstance(basis, str) or basis not in HEADINGS:
-        return ""
-    excerpt = re.search(rf"^## {HEADINGS[basis]}\r?\n\r?\n- ([^\r\n]+)", body, re.M)
-    return re.sub(r"\\" + MARKDOWN_PUNCTUATION.pattern, r"\1", excerpt[1]) if excerpt else ""
-
-
 def read_article(path: Path) -> tuple[Article, bytes, re.Match] | None:
     if path.is_symlink():
         return None
     original = path.read_bytes()
     text = original.decode("utf-8")
-    frontmatter = FRONTMATTER.match(text)
-    if frontmatter is None:
+    note = feed_note(text)
+    if note is None:
         return None
-    properties = yaml.safe_load(frontmatter["yaml"])
-    if not isinstance(properties, dict) or properties.get("type") != "feed-article":
-        return None
+    properties, frontmatter = note
     basis = properties.get("content_basis")
     if not isinstance(basis, str) or basis not in HEADINGS:
         return None
@@ -80,32 +53,6 @@ def read_article(path: Path) -> tuple[Article, bytes, re.Match] | None:
         any(key in properties for key in ("classification_version", "classification_status", "primary_topic", "related_topics")),
     )
     return article, original, frontmatter
-
-
-def api_key(required: bool = True) -> str:
-    key = setting("NVIDIA_API_KEY") or file_setting(ROOT.parent / "myAPIKEYs" / ".env", "NVIDIA_API_KEY")
-    if not key and not required:
-        return ""
-    if not key or not key.isascii() or any(char.isspace() for char in key):
-        raise ValueError("NVIDIA_API_KEY를 환경변수 또는 로컬 .env에 설정하세요.")
-    return key
-
-
-def request_nvidia(payload: dict, key: str) -> dict:
-    request = Request(NVIDIA_URL, data=json.dumps(payload).encode(), headers={
-        "Content-Type": "application/json", "Authorization": f"Bearer {key}",
-    })
-    try:
-        with urlopen(request, timeout=30) as response:
-            result = json.load(response)
-    except HTTPError as error:
-        raise ValueError(f"NVIDIA API HTTP {error.code}") from None
-    except URLError as error:
-        raise ValueError(f"NVIDIA API 연결 실패 ({type(error.reason).__name__})") from None
-    try:
-        return json.loads(result["choices"][0]["message"]["content"])
-    except (KeyError, TypeError, ValueError, IndexError):
-        raise ValueError("NVIDIA API가 유효한 JSON 응답을 반환하지 않았습니다.") from None
 
 
 def classify_batch(articles: list[Article], key: str, model: str) -> list[dict]:
@@ -180,30 +127,13 @@ def add_classification(article: Article, result: dict, model: str) -> bool:
     }
     if result["primary"] != REVIEW:
         fields.update(primary_topic=result["primary"], related_topics=result["related"], classification_evidence=result["evidence"])
-    newline = frontmatter["newline"]
-    block = "".join(f"{field}: {yaml_value(value)}{newline}" for field, value in fields.items())
-    text = original.decode("utf-8")
-    offset = frontmatter.start("end")
-    temporary = None
-    try:
-        with NamedTemporaryFile(dir=article.path.parent, prefix=".topic-", suffix=".tmp", delete=False) as handle:
-            temporary = Path(handle.name)
-            handle.write((text[:offset] + block + text[offset:]).encode())
-            handle.flush()
-            os.fsync(handle.fileno())
-        if article.path.is_symlink() or article.path.read_bytes() != original:
-            return False
-        os.replace(temporary, article.path)
-        return True
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+    return append_note_properties(article.path, original, frontmatter, fields)
 
 
 def run(evaluate: bool = False, limit: int = MAX_ITEMS, select: str | None = None) -> int:
     articles = []
     inaccessible = 0
-    for path in sorted((VAULT / "10_Feeds" / "Articles").rglob("*.md")):
+    for path in sorted((vault_path() / "10_Feeds" / "Articles").rglob("*.md")):
         try:
             loaded = read_article(path)
         except (ValueError, OSError, yaml.YAMLError):
