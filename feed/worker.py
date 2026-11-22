@@ -5,18 +5,19 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
 from traceback import print_exc
 
-from collect_feeds import main
-from feed.settings import COLLECTOR_LOG, KST
+from .classify import run as classify
+from .collect import main as collect
+from .settings import KST, runtime_path
 
 
 def run() -> int:
-    with COLLECTOR_LOG.open("a", encoding="utf-8", buffering=1) as log:
+    path = runtime_path("collector.log")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", buffering=1) as log:
         with redirect_stdout(log), redirect_stderr(log):
             print(f"[{datetime.now(KST).isoformat(timespec='seconds')}] Collection started")
             try:
-                collection_code = main()
-                from classify_feeds import run as classify
-
+                collection_code = collect()
                 classification_code = classify()
                 exit_code = int(bool(collection_code or classification_code))
             except SystemExit as error:

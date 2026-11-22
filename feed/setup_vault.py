@@ -1,7 +1,7 @@
 """Prepare the target vault and copy default dashboards that are missing."""
 
-from feed.settings import ROOT, vault_path
-from feed.vault import write_new_note
+from .settings import ROOT, vault_path
+from .vault import write_new_note
 
 
 def setup() -> None:

@@ -7,8 +7,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CONFIG = ROOT / "config"
+RUNTIME = ROOT / ".runtime"
 KST = timezone(timedelta(hours=9))
-COLLECTOR_LOG = ROOT / "collector.log"
 DOTENV_VALUE = re.compile(r'''^\s*(?:"([^"]*)"|'([^']*)'|([^#]*?))\s*(?:#.*)?$''')
 
 
@@ -34,3 +35,11 @@ def vault_path() -> Path:
     if configured:
         return (ROOT / Path(configured).expanduser()).resolve()
     return ROOT.parent / "NVIDIA Feed Vault"
+
+
+def runtime_path(name: str) -> Path:
+    current = RUNTIME / name
+    legacy = ROOT / name
+    if not current.exists() and legacy.is_file():
+        return legacy
+    return current

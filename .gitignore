@@ -9,5 +9,6 @@ __pycache__/
 *.db
 *.db-*
 .decision-trial/
+.runtime/
 .obsidian/
 NVIDIA Feed Vault/

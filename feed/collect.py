@@ -8,9 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from feed.settings import KST, ROOT, vault_path
-from feed.sources import read_source
-from feed.vault import save_article
+from .settings import CONFIG, KST, vault_path
+from .sources import read_source
+from .vault import save_article
 
 
 def collect(vault: Path, sources: list[dict], limit: int | None) -> int:
@@ -53,7 +53,7 @@ def main() -> int:
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
     try:
-        sources = json.loads((ROOT / "sources.json").read_text(encoding="utf-8"))
+        sources = json.loads((CONFIG / "sources.json").read_text(encoding="utf-8"))
         return collect(vault_path(), sources, args.limit)
     except (OSError, ValueError) as error:
         parser.exit(1, f"{error}\n")

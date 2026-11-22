@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import Lock, Thread
 from time import sleep
 
-from .settings import COLLECTOR_LOG, KST, ROOT
+from .settings import KST, ROOT, runtime_path
 
 
 DAILY_AT = time(7, 30)
@@ -73,7 +73,7 @@ class FeedJobs:
         exit_code = -1
         try:
             worker = subprocess.run(
-                [sys.executable, "-B", "-X", "utf8", str(ROOT / "run_service.py")],
+                [sys.executable, "-B", "-X", "utf8", "-m", "feed.worker"],
                 cwd=ROOT, timeout=300,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
@@ -106,7 +106,7 @@ class FeedJobs:
             last = db.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
             running = self.running
         try:
-            log = COLLECTOR_LOG.read_text(encoding="utf-8").splitlines()[-20:]
+            log = runtime_path("collector.log").read_text(encoding="utf-8").splitlines()[-20:]
         except FileNotFoundError:
             log = []
         return {

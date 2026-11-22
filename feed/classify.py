@@ -10,10 +10,10 @@ from pathlib import Path
 
 import yaml
 
-from feed.nvidia import DEFAULT_MODEL, api_key, request_nvidia
-from feed.settings import ROOT, setting, vault_path
-from feed.topics import TOPICS
-from feed.vault import HEADINGS, append_note_properties, feed_note, public_excerpt
+from .nvidia import DEFAULT_MODEL, api_key, request_nvidia
+from .settings import CONFIG, setting, vault_path
+from .topics import TOPICS
+from .vault import HEADINGS, append_note_properties, feed_note, public_excerpt
 
 
 VERSION = "v1"
@@ -143,7 +143,7 @@ def run(evaluate: bool = False, limit: int = MAX_ITEMS, select: str | None = Non
             articles.append(loaded[0])
     reference = {}
     if evaluate:
-        reference = json.loads((ROOT / "topic_reference.json").read_text(encoding="utf-8"))
+        reference = json.loads((CONFIG / "topic_reference.json").read_text(encoding="utf-8"))
         articles = [article for article in articles if article.key in reference and (select is None or select == article.source)]
     else:
         articles = [article for article in articles if not article.classified]
