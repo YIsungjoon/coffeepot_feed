@@ -7,7 +7,8 @@ from traceback import print_exc
 
 from .classify import run as classify
 from .collect import main as collect
-from .settings import KST, runtime_path
+from .graph import refresh_graph
+from .settings import KST, runtime_path, vault_path
 
 
 def run() -> int:
@@ -27,6 +28,12 @@ def run() -> int:
                 exit_code = 1
             except Exception:
                 print_exc()
+                exit_code = 1
+            try:
+                topics, days = refresh_graph(vault_path())
+                print(f"그래프 갱신: 주제 {topics}개, 일간 브리핑 {days}개")
+            except (ValueError, OSError) as error:
+                print(f"그래프 갱신: {error}", file=sys.stderr)
                 exit_code = 1
             print(f"[{datetime.now(KST).isoformat(timespec='seconds')}] Collection finished, exit={exit_code}")
     return exit_code

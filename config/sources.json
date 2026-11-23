@@ -1,4 +1,4 @@
 [
   {"name": "GeekNews", "format": "feed", "url": "https://news.hada.io/rss/news"},
-  {"name": "COFFEEPOT", "format": "coffeepot", "url": "https://coffeepot.me/"}
+  {"name": "COFFEEPOT", "format": "coffeepot", "url": "https://coffeepot.me/library/"}
 ]

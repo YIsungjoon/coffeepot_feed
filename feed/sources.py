@@ -1,19 +1,21 @@
 """Fetch and parse RSS, Atom and the COFFEEPOT public listing."""
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
-from urllib.parse import parse_qs, urljoin, urlsplit
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
-from .links import public_link
+from .links import public_link, publisher_article
 
 
 ATOM = "{http://www.w3.org/2005/Atom}"
 XML_BASE = "{http://www.w3.org/XML/1998/namespace}base"
 MAX_BYTES = 2_000_000
+COFFEEPOT_LIBRARY = "https://coffeepot.me/library/"
 BLOCK_TAGS = {"article", "br", "div", "h1", "h2", "h3", "hr", "li", "p", "td"}
 
 
@@ -126,64 +128,100 @@ class CoffeepotCards(HTMLParser):
         super().__init__()
         self.entries = []
         self.url = None
+        self.container = None
+        self.depth = 0
+        self.notice = False
         self.part = None
         self.div_depth = 0
         self.card_text = {}
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
-        href = attrs.get("href") or ""
-        if tag == "a" and self.url is None and href.startswith("/library/?"):
-            query = parse_qs(urlsplit(href).query)
-            item_id = query.get("idx", [""])[0]
-            if query.get("bmode") == ["view"] and item_id.isascii() and item_id.isdecimal():
-                self.url = f"https://coffeepot.me/library/?bmode=view&idx={item_id}"
-                self.card_text = {"title-block": [], "text-block": []}
+        classes = (attrs.get("class") or "").split()
+        if self.url is None:
+            href = attrs.get("href") if tag == "a" else None
+            if tag == "div" and "_card_body" in classes:
+                target = re.fullmatch(r"""location\.href=['"]([^'"]+)['"];?""", attrs.get("onclick") or "")
+                href = target[1] if target else None
+            if href:
+                try:
+                    source, url = publisher_article(urljoin(COFFEEPOT_LIBRARY, href))
+                except ValueError:
+                    return
+                if source == "COFFEEPOT":
+                    self.url, self.container, self.depth = url, tag, 1
+                    self.card_text = {"title-block": [], "text-block": []}
+            return
+        if tag == self.container:
+            self.depth += 1
+        if tag == "em" and "notice-block" in classes:
+            self.notice = True
         if tag == "div" and self.url:
             if self.part:
                 self.div_depth += 1
             else:
-                classes = (attrs.get("class") or "").split()
                 self.part = next((name for name in classes if name in self.card_text), None)
                 self.div_depth = 1 if self.part else 0
 
     def handle_data(self, data):
-        if self.part:
+        if self.part and not self.notice:
             self.card_text[self.part].append(data)
 
     def handle_endtag(self, tag):
+        if tag == "em":
+            self.notice = False
         if tag == "div" and self.part:
             self.div_depth -= 1
             if not self.div_depth:
                 self.part = None
-        if tag == "a" and self.url:
+        if tag != self.container:
+            return
+        self.depth -= 1
+        if not self.depth:
             title = " ".join("".join(self.card_text["title-block"]).split())
             excerpt = " ".join("".join(self.card_text["text-block"]).split())
             if title:
                 self.entries.append(Entry(self.url, title, excerpt))
             self.url = self.part = None
+            self.container = None
             self.div_depth = 0
+
+
+def download(url: str, *, open_url=urlopen) -> tuple[str, str]:
+    request = Request(url, headers={"User-Agent": "ObsidianFeedCollector/1.0"})
+    with open_url(request, timeout=15) as response:
+        data = response.read(MAX_BYTES + 1)
+        if len(data) > MAX_BYTES:
+            raise ValueError("Source exceeds the 2 MB download limit")
+        document = data.decode(response.headers.get_content_charset() or "utf-8-sig").lstrip("\ufeff")
+        response_url = response.geturl()
+    return document, response_url
+
+
+def coffeepot_cards(document: str) -> list[Entry]:
+    parser = CoffeepotCards()
+    parser.feed(document)
+    parser.close()
+    return parser.entries
+
+
+def search_coffeepot(query: str) -> list[Entry]:
+    url = COFFEEPOT_LIBRARY + "?" + urlencode({"keyword_type": "all", "keyword": query})
+    document, _ = download(url)
+    return coffeepot_cards(document)
 
 
 def read_source(source: dict) -> list[Entry]:
     url = source["url"]
     if not public_link(url):
         raise ValueError("Source URL must use HTTP(S)")
-    request = Request(url, headers={"User-Agent": "ObsidianFeedCollector/1.0"})
-    with urlopen(request, timeout=15) as response:
-        data = response.read(MAX_BYTES + 1)
-        if len(data) > MAX_BYTES:
-            raise ValueError("Source exceeds the 2 MB download limit")
-        document = data.decode(response.headers.get_content_charset() or "utf-8-sig").lstrip("\ufeff")
-        response_url = response.geturl()
+    document, response_url = download(url)
 
     if source["format"] == "feed":
         return parse_feed(document, response_url)
     if source["format"] == "coffeepot":
-        parser = CoffeepotCards()
-        parser.feed(document)
-        parser.close()
-        if not parser.entries:
+        entries = coffeepot_cards(document)
+        if not entries:
             raise ValueError("COFFEEPOT listing did not expose any article cards")
-        return parser.entries
+        return entries
     raise ValueError(f"Unknown source format: {source['format']}")

@@ -12,6 +12,8 @@ let todayOnly = false;
 let primaryOnly = false;
 let todayIds = new Set();
 let previewUrl = null;
+let lastFeed = '';
+let feedRequest = 0;
 
 function element(tag, label, className) {
   const node = document.createElement(tag);
@@ -99,6 +101,7 @@ function render() {
 
 function createFilters() {
   for (const value of [...new Set(articles.map(article => article.source))]) {
+    if (Array.from($('sources').children).some(button => button.dataset.source === value)) continue;
     const button = element('button', value === 'COFFEEPOT' ? '커피팟' : value, 'source-button');
     button.type = 'button';
     button.dataset.source = value;
@@ -106,6 +109,7 @@ function createFilters() {
   }
   const topics = [...new Set(articles.flatMap(articleTopics))].sort((left, right) => left.localeCompare(right, 'ko'));
   for (const value of ['', ...topics]) {
+    if (Array.from($('topics').children).some(button => button.dataset.topic === value)) continue;
     const button = element('button', value || '전체 주제', 'topic-button');
     button.type = 'button';
     button.dataset.topic = value;
@@ -138,10 +142,12 @@ function filterToday(mainTopic, group) {
 
 function showBriefing(briefing) {
   todayIds = new Set(briefing.article_ids);
-  todayOnly = todayIds.size > 0;
+  if (keyword) keyword = briefing.keywords.find(group => group.name === keyword.name) || null;
   setText('briefing-meta', `${formatDate(briefing.day)} · 오늘 수집 ${todayIds.size}건 · 출처 ${briefing.source_count}곳`);
+  $('briefing-details').hidden = !todayIds.size;
+  $('chart').replaceChildren();
+  $('keyword-chips').replaceChildren();
   if (!todayIds.size) return;
-  $('briefing-details').hidden = false;
   const lookup = new Map(articles.map(article => [article.id, article]));
   $('picks').replaceChildren(...briefing.picks.map(pick => rankedItem(lookup.get(pick.article_id), pick.reason)));
 
@@ -170,21 +176,32 @@ function showBriefing(briefing) {
 }
 
 async function load() {
+  const request = ++feedRequest;
   try {
     const response = await fetch('/api/reader');
     if (!response.ok) throw new Error();
-    const data = await response.json();
+    const feed = await response.text();
+    if (request !== feedRequest || feed === lastFeed) return;
+    const data = JSON.parse(feed);
+    if (!lastFeed && !$('search').value.trim()) todayOnly = data.briefing.article_ids.length > 0;
+    lastFeed = feed;
     articles = data.articles;
     createFilters();
     showBriefing(data.briefing);
     $('recommend').disabled = !articles.length;
     render();
   } catch {
-    setText('empty', '기사 목록을 불러오지 못했습니다. 화면을 새로고침해 주세요.');
+    if (!lastFeed) setText('empty', '기사 목록을 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.');
   }
 }
 
-$('search').addEventListener('input', render);
+$('search').addEventListener('input', () => {
+  if ($('search').value.trim()) {
+    todayOnly = false;
+    keyword = null;
+  }
+  render();
+});
 $('today-only').addEventListener('click', () => {
   todayOnly = !todayOnly;
   if (!todayOnly) keyword = null;
@@ -204,6 +221,111 @@ $('topics').addEventListener('click', event => {
   primaryOnly = false;
   keyword = null;
   render();
+});
+
+function updateArchiveLinks() {
+  const query = $('archive-query').value.trim();
+  const terms = new URLSearchParams({ q: `site:news.hada.io/topic ${query}` });
+  $('search-geeknews').href = query ? `https://www.google.com/search?${terms}` : 'https://news.hada.io/past';
+}
+
+$('archive-query').addEventListener('input', updateArchiveLinks);
+$('archive').addEventListener('toggle', () => {
+  if ($('archive').open && !$('archive-query').value) {
+    $('archive-query').value = $('search').value.trim().slice(0, 120);
+    updateArchiveLinks();
+  }
+});
+
+async function saveArchiveArticle(url, title) {
+  const response = await fetch('/api/archive/import', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, title }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || '기사를 저장하지 못했습니다.');
+  await load();
+  return result;
+}
+
+function archiveResult(article) {
+  const item = element('li', '');
+  const details = element('div', '');
+  const link = element('a', article.title, 'headline');
+  link.href = article.url;
+  link.target = '_blank';
+  link.rel = 'noreferrer';
+  details.append(link);
+  if (article.excerpt) details.append(element('p', article.excerpt));
+  const saved = articles.some(savedArticle => savedArticle.url === article.url);
+  const button = element('button', saved ? '저장됨' : '저장', 'dialog-action');
+  button.type = 'button';
+  button.disabled = saved;
+  button.setAttribute('aria-label', `${article.title} ${button.textContent}`);
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      const result = await saveArchiveArticle(article.url, article.title);
+      button.textContent = '저장됨';
+      button.setAttribute('aria-label', `${article.title} 저장됨`);
+      setText('archive-message', result.already_saved ? '이미 저장된 기사입니다.' : '옵시디언에 저장했습니다.');
+    } catch (error) {
+      setText('archive-message', error.message);
+      button.disabled = false;
+    }
+  });
+  item.append(details, button);
+  return item;
+}
+
+$('archive-search').addEventListener('submit', async event => {
+  event.preventDefault();
+  const query = $('archive-query').value.trim();
+  if (!query) return;
+  $('search-coffeepot').disabled = true;
+  $('archive-results').replaceChildren();
+  setText('archive-message', '커피팟 라이브러리를 검색하는 중입니다.');
+  try {
+    const response = await fetch(`/api/archive/coffeepot?${new URLSearchParams({ q: query })}`);
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    setText('archive-message', result.articles.length
+      ? `커피팟 검색 결과 첫 페이지 · ${result.articles.length}건`
+      : '커피팟에서 검색 결과를 찾지 못했습니다.');
+    $('archive-results').replaceChildren(...result.articles.map(archiveResult));
+    const more = element('a', '커피팟 라이브러리 검색 결과 전체 보기 ↗');
+    more.href = `https://coffeepot.me/library/?${new URLSearchParams({ keyword_type: 'all', keyword: query })}`;
+    more.target = '_blank';
+    more.rel = 'noreferrer';
+    $('archive-message').append(' · ', more);
+  } catch (error) {
+    setText('archive-message', error.message || '커피팟 검색에 실패했습니다.');
+  } finally {
+    $('search-coffeepot').disabled = false;
+  }
+});
+
+$('archive-import').addEventListener('submit', async event => {
+  event.preventDefault();
+  const url = $('archive-url').value.trim();
+  const title = $('archive-title').value.trim();
+  $('archive-save').disabled = true;
+  setText('import-message', '기사 정보를 확인하는 중입니다.');
+  try {
+    const result = await saveArchiveArticle(url, title);
+    setText('import-message', result.already_saved ? '이미 저장된 기사입니다.' : '옵시디언에 저장했습니다.');
+    const saved = articles.find(article => article.url === result.url);
+    if (saved) {
+      const open = element('button', '저장된 기사 보기', 'topic-button');
+      open.type = 'button';
+      open.addEventListener('click', () => readArticle(saved));
+      $('import-message').append(' ', open);
+    }
+    event.target.reset();
+  } catch (error) {
+    setText('import-message', error.message);
+  } finally {
+    $('archive-save').disabled = false;
+  }
 });
 
 $('recommend-form').addEventListener('submit', async event => {
@@ -230,3 +352,4 @@ $('recommend-form').addEventListener('submit', async event => {
   }
 });
 load();
+setInterval(() => { if (!document.hidden) load(); }, 60_000);

@@ -8,12 +8,13 @@ from contextlib import closing
 from datetime import datetime, time, timedelta
 from pathlib import Path
 from threading import Lock, Thread
-from time import sleep
+from time import monotonic, sleep
 
 from .settings import KST, ROOT, runtime_path
 
 
 DAILY_AT = time(7, 30)
+REFRESH_SECONDS = 300
 RETRY_DELAY = timedelta(minutes=15)
 MAX_ATTEMPTS = 4
 
@@ -23,6 +24,7 @@ class FeedJobs:
         self.database = database
         self.lock = Lock()
         self.running = False
+        self.refresh_at = monotonic()
         with closing(self.connect()) as db, db:
             db.execute("""CREATE TABLE IF NOT EXISTS runs (
                 id INTEGER PRIMARY KEY,
@@ -66,6 +68,7 @@ class FeedJobs:
                     (datetime.now(KST).isoformat(), scheduled_day),
                 ).lastrowid
             self.running = True
+            self.refresh_at = monotonic() + REFRESH_SECONDS
             Thread(target=self.collect, args=(run_id,), daemon=True).start()
             return True
 
@@ -97,6 +100,8 @@ class FeedJobs:
                 now = datetime.now(KST)
                 if self.next_run(now) <= now:
                     self.start(now.date().isoformat())
+                elif monotonic() >= self.refresh_at:
+                    self.start()
             except sqlite3.Error:
                 logging.exception("Could not check the daily collection schedule")
             sleep(10)
@@ -105,13 +110,17 @@ class FeedJobs:
         with self.lock, closing(self.connect()) as db:
             last = db.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
             running = self.running
+            refresh_in = max(0, self.refresh_at - monotonic())
         try:
             log = runtime_path("collector.log").read_text(encoding="utf-8").splitlines()[-20:]
         except FileNotFoundError:
             log = []
+        now = datetime.now(KST)
+        daily = self.next_run(now)
         return {
             "running": running,
-            "next_run": self.next_run(datetime.now(KST)).isoformat(),
+            "next_run": daily.isoformat(),
+            "next_refresh": min(daily, now + timedelta(seconds=refresh_in)).isoformat(),
             "last_run": dict(last) if last else None,
             "log": log,
         }

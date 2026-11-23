@@ -4,12 +4,14 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
+from .archive import import_article
 from .articles import article_list, reader_feed
 from .jobs import FeedJobs
 from .recommendations import MAX_INTEREST, recommend_news
 from .settings import ROOT
+from .sources import search_coffeepot
 
 
 WEB_ROOT = ROOT / "web"
@@ -61,7 +63,8 @@ class FeedHandler(BaseHTTPRequestHandler):
         if not self.local_host():
             self.send_json(403, {"error": "이 PC에서만 접근할 수 있습니다."})
             return
-        path = urlsplit(self.path).path
+        request = urlsplit(self.path)
+        path = request.path
         if path in STATIC_FILES:
             name, content_type = STATIC_FILES[path]
             try:
@@ -76,15 +79,19 @@ class FeedHandler(BaseHTTPRequestHandler):
             self.send_json(200, self.server.jobs.status())
         elif path == "/api/articles":
             self.send_json(200, article_list(self.server.vault))
+        elif path == "/api/archive/coffeepot":
+            self.coffeepot_search(parse_qs(request.query).get("q", [""])[0].strip())
         else:
             self.send_json(404, {"error": "페이지가 없습니다."})
 
     def do_POST(self):
         host = self.headers.get("Host")
         if not self.local_host() or self.headers.get("Origin") != f"http://{host}":
-            self.send_json(403, {"error": "관리 화면에서 다시 시도하세요."})
+            self.send_json(403, {"error": "피드 서비스 화면에서 다시 시도하세요."})
         elif self.path == "/api/recommend":
             self.recommend()
+        elif self.path == "/api/archive/import":
+            self.save_archive_article()
         elif self.path != "/api/run":
             self.send_json(404, {"error": "페이지가 없습니다."})
         elif self.server.jobs.start():
@@ -92,13 +99,51 @@ class FeedHandler(BaseHTTPRequestHandler):
         else:
             self.send_json(409, {"error": "이미 수집 중입니다."})
 
+    def read_json(self):
+        size = int(self.headers.get("Content-Length", "0"))
+        if not 0 < size <= 4096:
+            raise ValueError
+        data = json.loads(self.rfile.read(size))
+        if not isinstance(data, dict):
+            raise ValueError
+        return data
+
+    def coffeepot_search(self, query):
+        if not 1 <= len(query) <= 120:
+            self.send_json(400, {"error": "검색어를 1~120자로 입력해 주세요."})
+            return
+        try:
+            results = search_coffeepot(query)
+        except (ValueError, OSError):
+            self.send_json(502, {"error": "커피팟 검색 결과를 불러오지 못했습니다."})
+            return
+        self.send_json(200, {"articles": [
+            {"url": entry.url, "title": entry.title, "excerpt": entry.excerpt}
+            for entry in results
+        ]})
+
+    def save_archive_article(self):
+        try:
+            data = self.read_json()
+            url, title = data.get("url"), data.get("title", "")
+            if not isinstance(url, str) or not 1 <= len(url.strip()) <= 2000 or not isinstance(title, str) or len(title) > 400:
+                raise ValueError
+        except ValueError:
+            self.send_json(400, {"error": "기사 주소와 제목을 확인해 주세요."})
+            return
+        try:
+            result = import_article(self.server.vault, url.strip(), title.strip())
+        except ValueError as error:
+            self.send_json(422, {"error": str(error)})
+            return
+        except OSError:
+            self.send_json(500, {"error": "기사를 벌트에 저장하지 못했습니다."})
+            return
+        self.send_json(200 if result["already_saved"] else 201, result)
+
     def recommend(self):
         try:
-            size = int(self.headers.get("Content-Length", "0"))
-            if not 0 < size <= 4096:
-                raise ValueError
-            payload = json.loads(self.rfile.read(size))
-            interest = payload.get("interest") if isinstance(payload, dict) else None
+            interest = self.read_json().get("interest")
             if not isinstance(interest, str) or not 1 <= len(interest.strip()) <= MAX_INTEREST:
                 raise ValueError
         except ValueError:

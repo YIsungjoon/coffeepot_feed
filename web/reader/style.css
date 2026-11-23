@@ -58,6 +58,13 @@
   .topic-button[aria-pressed='true'] { background: var(--ink); color: #fffaf0; border-color: var(--ink); }
   .result-count { color: var(--muted); font-size: .8rem; }
   .list-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .5rem; }
+  .archive { padding: .75rem 0; border-bottom: 1px solid var(--rule); }
+  .archive summary { width: fit-content; cursor: pointer; font-weight: 700; }
+  .archive .personal-form { flex-wrap: wrap; }
+  .archive .search { flex: 1 1 13rem; }
+  .archive-import { padding-top: .5rem; }
+  .archive .ranked li { align-items: start; }
+  .archive .ranked li > button { flex-shrink: 0; }
   .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; }
   .card { position: relative; min-width: 0; padding: 1.25rem .15rem 1.18rem; border-bottom: 1px solid var(--rule); }
   .card-meta { display: flex; justify-content: space-between; gap: .5rem; color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; }

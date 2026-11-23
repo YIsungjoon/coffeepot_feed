@@ -98,10 +98,10 @@ async function refresh() {
   try {
     const response = await fetch('/api/status');
     if (!response.ok) throw new Error();
-    const { running, next_run, last_run, log } = await response.json();
+    const { running, next_run, next_refresh, last_run, log } = await response.json();
     $('connection').dataset.online = 'true';
     show('connection', running ? '수집·분류 중' : '서버 연결됨');
-    show('next', formatTime(next_run));
+    show('next', formatTime(next_refresh || next_run));
     if (last_run) {
       const summary = running ? '진행 중' : last_run.exit_code === 0 ? '성공' : '실패';
       show('last', `최근 실행 ${summary} · ${formatTime(last_run.finished_at || last_run.started_at)}`);

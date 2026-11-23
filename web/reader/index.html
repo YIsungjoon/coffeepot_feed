@@ -56,10 +56,26 @@
       <div><h2 id="list-title">기사 목록</h2><span id="count" class="result-count" aria-live="polite"></span></div>
       <div class="list-tools">
         <button class="topic-button" id="today-only" type="button" aria-pressed="false">오늘 수집만</button>
-        <input class="search" id="search" type="search" aria-label="기사 검색" placeholder="기사 검색">
+        <input class="search" id="search" type="search" aria-label="기사 검색" placeholder="저장된 기사 검색">
       </div>
     </div>
     <div class="filters" id="topics" aria-label="기사 주제"></div>
+    <details class="archive" id="archive">
+      <summary>지난 기사 검색 · 링크로 추가</summary>
+      <form class="personal-form" id="archive-search">
+        <input class="search" id="archive-query" type="search" aria-label="출처 검색어" placeholder="아직 저장되지 않은 기사 검색" maxlength="120" required>
+        <button class="dialog-action" id="search-coffeepot" type="submit">커피팟 검색</button>
+        <a class="dialog-action" id="search-geeknews" href="https://news.hada.io/past" target="_blank" rel="noreferrer">긱뉴스 웹 검색 ↗</a>
+      </form>
+      <p class="section-note" id="archive-message" role="status"></p>
+      <ol class="ranked" id="archive-results"></ol>
+      <form class="personal-form archive-import" id="archive-import">
+        <input class="search" id="archive-url" type="url" aria-label="기사 주소" placeholder="긱뉴스·커피팟 기사 주소" maxlength="2000" required>
+        <input class="search" id="archive-title" type="text" aria-label="기사 제목" placeholder="기사 제목 (자동 확인이 안 될 때)" maxlength="400">
+        <button class="dialog-action" id="archive-save" type="submit">기사 추가</button>
+      </form>
+      <p class="section-note" id="import-message" role="status"></p>
+    </details>
     <div class="cards" id="cards"></div>
     <p id="empty" role="status">기사를 불러오는 중입니다.</p>
   </section>
