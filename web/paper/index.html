@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>논문 탐색</title>
+  <link rel="stylesheet" href="/assets/paper.css">
+  <script src="/assets/paper.js" defer></script>
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <h1>논문 탐색</h1>
+    <nav aria-label="논문 탐색 화면">
+      <button id="search-tab" type="button" aria-pressed="true">검색</button>
+      <button id="topics-tab" type="button" aria-pressed="false">주제 둘러보기</button>
+      <button id="library-tab" type="button" aria-pressed="false">보관함 <span id="library-count"></span></button>
+    </nav>
+  </header>
+  <section id="search-view" aria-label="논문 검색">
+    <form id="search-form" role="search">
+      <label class="query">검색어
+        <input id="query" type="search" maxlength="180" placeholder="논문 제목 또는 연구 주제" required>
+      </label>
+      <label>출처
+        <select id="source">
+          <option value="arxiv">arXiv · 공개 PDF</option>
+          <option value="crossref">Crossref · 학술 출판물</option>
+        </select>
+      </label>
+      <label>정렬
+        <select id="order"><option value="relevance">관련도순</option><option value="recent">최신순</option></select>
+      </label>
+      <button id="search-submit" class="primary" type="submit">검색</button>
+    </form>
+    <div id="topic-context" class="topic-context" hidden>
+      <p id="active-topic"></p>
+      <label>주제 결과 정렬
+        <select id="topic-order"><option value="recent">최신순</option><option value="cited">인용 많은 순</option></select>
+      </label>
+    </div>
+    <p id="topic-note" class="meta" hidden></p>
+    <div class="result-head"><p id="search-status" role="status">제목이나 주제로 검색하세요.</p></div>
+    <ol id="results" class="paper-list"></ol>
+    <nav id="pages" class="pages" aria-label="검색 결과 페이지" hidden>
+      <button id="prev" type="button">이전</button>
+      <span id="page-number"></span>
+      <button id="next" type="button">다음</button>
+    </nav>
+  </section>
+  <section id="topics-view" aria-labelledby="topics-title" hidden>
+    <div class="result-head"><h2 id="topics-title">연구 분야</h2><p id="topics-status" role="status"></p></div>
+    <label class="topic-search">분야·주제 검색
+      <input id="topic-query" type="search" placeholder="예: 인공지능, Computer Science">
+    </label>
+    <button id="topics-retry" type="button" hidden>분야 목록 다시 불러오기</button>
+    <div id="topic-groups"></div>
+  </section>
+  <section id="library-view" aria-labelledby="library-title" hidden>
+    <div class="result-head"><h2 id="library-title">논문 보관함</h2><p id="library-status" role="status"></p></div>
+    <div id="filters" class="filters" hidden>
+      <label>대분류<select id="domain"></select></label>
+      <label>중분류<select id="field"></select></label>
+      <label>소분류<select id="subfield"></select></label>
+      <label>발행 시기<select id="period"></select></label>
+    </div>
+    <div id="library-list"></div>
+  </section>
+</main>
+<dialog id="detail" aria-labelledby="paper-title">
+  <article>
+    <div class="detail-top">
+      <p id="paper-meta" class="meta"></p>
+      <form method="dialog"><button type="submit">닫기</button></form>
+    </div>
+    <h2 id="paper-title"></h2>
+    <p id="paper-authors" class="meta"></p>
+    <p id="paper-class" class="classification" hidden></p>
+    <section class="summary" aria-labelledby="summary-title">
+      <h3 id="summary-title">초록 발췌</h3>
+      <p id="paper-summary"></p>
+    </section>
+    <div class="actions">
+      <a id="pdf" class="action primary" target="_blank" rel="noreferrer" hidden>공개 PDF 열기 · 다운로드 ↗</a>
+      <a id="open-access" class="action" target="_blank" rel="noreferrer" hidden>공개 원문 ↗</a>
+      <a id="publisher" class="action" target="_blank" rel="noreferrer">논문 원문 페이지 ↗</a>
+      <button id="save" type="button">보관함에 저장</button>
+    </div>
+    <p id="paper-status" class="meta" role="status"></p>
+    <section id="relationships" aria-labelledby="relations-title" hidden>
+      <h3 id="relations-title">인용 관계</h3>
+      <div class="network">
+        <section><h4>이 논문을 참조한 보관 논문</h4><ul id="citing"></ul></section>
+        <div class="network-current" id="network-current"></div>
+        <section><h4 id="references-title">이 논문이 참조한 논문</h4><ul id="references"></ul></section>
+      </div>
+      <button id="more-references" type="button" hidden>참고문헌 더 보기</button>
+    </section>
+  </article>
+</dialog>
+</body>
+</html>
