@@ -14,6 +14,7 @@ let todayIds = new Set();
 let previewUrl = null;
 let lastFeed = '';
 let feedRequest = 0;
+let checkingFeed = false;
 
 function element(tag, label, className) {
   const node = document.createElement(tag);
@@ -181,7 +182,8 @@ async function load() {
     const response = await fetch('/api/reader');
     if (!response.ok) throw new Error();
     const feed = await response.text();
-    if (request !== feedRequest || feed === lastFeed) return;
+    if (request !== feedRequest) return false;
+    if (feed === lastFeed) return true;
     const data = JSON.parse(feed);
     if (!lastFeed && !$('search').value.trim()) todayOnly = data.briefing.article_ids.length > 0;
     lastFeed = feed;
@@ -190,10 +192,68 @@ async function load() {
     showBriefing(data.briefing);
     $('recommend').disabled = !articles.length;
     render();
+    return true;
   } catch {
     if (!lastFeed) setText('empty', '기사 목록을 불러오지 못했습니다. 잠시 뒤 다시 시도합니다.');
+    return false;
   }
 }
+
+async function collectionState() {
+  const response = await fetch('/api/reader/collection');
+  if (!response.ok) throw new Error('수집 상태를 확인하지 못했습니다.');
+  return response.json();
+}
+
+function showCollection(state, result = '') {
+  const last = state.last_run;
+  const date = last?.finished_at?.slice(5, 16).replace('T', ' ');
+  const status = state.running ? '수집 중' : date ? `최근 수집 ${date}` : '수집 기록 없음';
+  const detail = result || (!state.running && last?.exit_code ? '일부 단계에 문제가 발생했습니다.' : '');
+  setText('collection-message', detail ? `${status} · ${detail}` : status);
+}
+
+async function updateReader() {
+  if (checkingFeed) return;
+  await Promise.all([
+    load(),
+    collectionState().then(state => { if (!checkingFeed) showCollection(state); }).catch(() => {
+      if (!checkingFeed) setText('collection-message', '최근 수집 상태를 확인하지 못했습니다.');
+    }),
+  ]);
+}
+
+$('refresh-feed').addEventListener('click', async () => {
+  checkingFeed = true;
+  $('refresh-feed').disabled = true;
+  const previous = lastFeed ? new Set(articles.map(article => article.id)) : null;
+  setText('collection-message', '긱뉴스와 커피팟의 새 글을 확인하는 중입니다.');
+  try {
+    const response = await fetch('/api/run', { method: 'POST' });
+    if (!response.ok && response.status !== 409) throw new Error('수집을 요청하지 못했습니다.');
+    const deadline = Date.now() + 310_000;
+    let state = await collectionState();
+    while (state.running && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 2_000));
+      state = await collectionState();
+    }
+    if (state.running) {
+      showCollection(state, '완료되면 기사 목록에 반영됩니다.');
+    } else if (!(await load())) {
+      showCollection(state, '기사 목록을 다시 불러오지 못했습니다.');
+    } else if (state.last_run?.exit_code !== 0) {
+      showCollection(state);
+    } else {
+      const added = previous ? articles.filter(article => !previous.has(article.id)).length : null;
+      showCollection(state, added === null ? '수집 완료' : added ? `새 기사 ${added}건` : '새 기사 없음');
+    }
+  } catch (error) {
+    setText('collection-message', error.message);
+  } finally {
+    checkingFeed = false;
+    $('refresh-feed').disabled = false;
+  }
+});
 
 $('search').addEventListener('input', () => {
   if ($('search').value.trim()) {
@@ -351,5 +411,7 @@ $('recommend-form').addEventListener('submit', async event => {
     $('recommend').disabled = false;
   }
 });
-load();
-setInterval(() => { if (!document.hidden) load(); }, 60_000);
+updateReader();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updateReader(); });
+window.addEventListener('pageshow', event => { if (event.persisted) updateReader(); });
+setInterval(() => { if (!document.hidden) updateReader(); }, 60_000);

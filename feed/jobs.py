@@ -106,11 +106,14 @@ class FeedJobs:
                 logging.exception("Could not check the daily collection schedule")
             sleep(10)
 
-    def status(self) -> dict:
+    def collection_state(self) -> dict:
         with self.lock, closing(self.connect()) as db:
             last = db.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
-            running = self.running
-            refresh_in = max(0, self.refresh_at - monotonic())
+            return {"running": self.running, "last_run": dict(last) if last else None}
+
+    def status(self) -> dict:
+        collection = self.collection_state()
+        refresh_in = max(0, self.refresh_at - monotonic())
         try:
             log = runtime_path("collector.log").read_text(encoding="utf-8").splitlines()[-20:]
         except FileNotFoundError:
@@ -118,9 +121,8 @@ class FeedJobs:
         now = datetime.now(KST)
         daily = self.next_run(now)
         return {
-            "running": running,
+            **collection,
             "next_run": daily.isoformat(),
             "next_refresh": min(daily, now + timedelta(seconds=refresh_in)).isoformat(),
-            "last_run": dict(last) if last else None,
             "log": log,
         }

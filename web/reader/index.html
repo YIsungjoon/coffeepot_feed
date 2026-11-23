@@ -53,8 +53,12 @@
 
   <section aria-labelledby="list-title" id="feed">
     <div class="articles-head">
-      <div><h2 id="list-title">기사 목록</h2><span id="count" class="result-count" aria-live="polite"></span></div>
+      <div>
+        <h2 id="list-title">기사 목록</h2><span id="count" class="result-count" aria-live="polite"></span>
+        <p id="collection-message" class="section-note" role="status"></p>
+      </div>
       <div class="list-tools">
+        <button class="topic-button" id="refresh-feed" type="button">지금 수집</button>
         <button class="topic-button" id="today-only" type="button" aria-pressed="false">오늘 수집만</button>
         <input class="search" id="search" type="search" aria-label="기사 검색" placeholder="저장된 기사 검색">
       </div>

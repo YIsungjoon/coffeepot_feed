@@ -89,6 +89,8 @@ class FeedHandler(BaseHTTPRequestHandler):
             self.send_content(200, content_type, body, csp=PAPER_CSP if name == "paper/index.html" else None)
         elif path == "/api/reader":
             self.send_json(200, reader_feed(self.server.vault))
+        elif path == "/api/reader/collection":
+            self.send_json(200, self.server.jobs.collection_state())
         elif path == "/api/status":
             self.send_json(200, self.server.jobs.status())
         elif path == "/api/articles":
